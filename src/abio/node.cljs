@@ -9,6 +9,6 @@
   (-list-files [this d])
   (-delete-file [this f]))
 
-(defn io-ops
+(defn bindings
   []
-  (->IOOps (js/require "fs")))
+  {:abio/io-ops (->IOOps (js/require "fs"))})
