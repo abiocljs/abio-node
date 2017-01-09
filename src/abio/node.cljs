@@ -3,6 +3,42 @@
     [abio.io]
     [clojure.string :as string]))
 
+(defrecord BufferedReader [raw-read raw-close buffer pos]
+  abio.io/IReader
+  (-read [_]
+    (if-some [buffered @buffer]
+      (do
+        (reset! buffer nil)
+        (subs buffered @pos))
+      (raw-read)))
+  abio.io/IBufferedReader
+  (-read-line [this]
+    (if-some [buffered @buffer]
+      (if-some [n (string/index-of buffered "\n" @pos)]
+        (let [rv (subs buffered @pos n)]
+          (reset! pos (inc n))
+          rv)
+        (if-some [new-chars (raw-read)]
+          (do
+            (reset! buffer (str (subs buffered @pos) new-chars))
+            (reset! pos 0)
+            (recur this))
+          (do
+            (reset! buffer nil)
+            (let [rv (subs buffered @pos)]
+              (if (= rv "")
+                nil
+                rv)))))
+      (if-some [new-chars (raw-read)]
+        (do
+          (reset! buffer new-chars)
+          (reset! pos 0)
+          (recur this))
+        nil)))
+  abio.io/IClosable
+  (-close [_]
+    (raw-close)))
+
 (defrecord IOOps [fs]
   abio.io/IIOOps
   (-directory? [this f]
@@ -14,7 +50,7 @@
           read-stream (.createReadStream fs nil #js {:fd fd :encoding encoding})]
       (.pause read-stream)
       (.read read-stream)                                   ; Hack to get buffer primed
-      (abio.io/->BufferedReader #(.read read-stream) #(.close fs fd) (atom nil) (atom 0))))
+      (->BufferedReader #(.read read-stream) #(.close fs fd) (atom nil) (atom 0))))
   (-file-reader-read [this reader])
   (-file-reader-close [this reader]))
 
