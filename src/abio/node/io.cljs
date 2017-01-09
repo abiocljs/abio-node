@@ -56,4 +56,4 @@
 
 (defn bindings
   []
-  {::io/bindings (->Bindings (js/require "fs"))})
+  (->Bindings (js/require "fs")))
