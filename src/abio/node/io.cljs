@@ -1,7 +1,8 @@
 (ns abio.node.io
   (:require
     [abio.io :as io]
-    [clojure.string :as string]))
+    [clojure.string :as string]
+    [clojure.core.async :as async]))
 
 (defrecord BufferedReader [raw-read raw-close buffer pos]
   abio.io/IReader
@@ -51,6 +52,11 @@
       (.pause read-stream)
       (.read read-stream)                                   ; Hack to get buffer primed
       (->BufferedReader #(.read read-stream) #(.close fs fd) (atom nil) (atom 0))))
+  (-file-async-reader-open [this path encoding]
+    (let [chan (async/promise-chan)
+          cb (fn [& args] (async/put! chan (vec args)))]
+      (.readFile fs path encoding cb)
+      chan))
   (-file-reader-read [this reader])
   (-file-reader-close [this reader]))
 
