@@ -17,6 +17,8 @@
         (reset! buffer nil)
         (subs buffered @pos))
       (raw-read)))
+  (-read [_ _] (throw (ex-info "No double arity -read for BufferedReader" {})))
+
   abio.io/IBufferedReader
   (-read-line [this]
     (if-some [buffered @buffer]
@@ -41,6 +43,8 @@
           (reset! pos 0)
           (recur this))
         nil)))
+  (-read-line [_ _] (throw (ex-info "No double arity -read-line for BufferedReader" {})))
+
   abio.io/IClosable
   (-close [_]
     (raw-close)))
@@ -49,31 +53,31 @@
 ;; You call -read and it gives you a channel? How do you read multiple items? I guess I should just write
 ;; I might be wrong in just trying to wrap a BufferedReader. I think also I need to wrap it all inside a go loop
 (defrecord AsyncBufferedReader [buffered-reader]
-  abio.io/IAsyncReader
-  (-read [_]
-    (let [chan (async/chan)]
-      (go
-        (loop [data (-read buffered-reader)]
-          (if data
-            (do
-              (async/>! chan data)
-              (recur (-read buffered-reader)))
-            (async/close! chan ))))
-      chan))
-  abio.io/IAsyncBufferedReader
-  (-read-line [_] ;; Will this create a channel every time? I think it will....
-    (let [chan (async/chan)]
-      (go
-        (loop [line (-read-line buffered-reader)]
-          (if line
-            (do
-              (async/>! chan line)
-              (recur (-read-line buffered-reader)))
-            (async/close! chan))))
-      chan))
+  abio.io/IReader
+  (-read [_] (throw (ex-info "No single arity -read for AsyncBufferedReader" {})))
+  (-read [_ chan]
+    (go
+      (loop [data (io/-read buffered-reader)]
+        (if data
+          (do
+            (async/>! chan data)
+            (recur (io/-read buffered-reader)))
+          (async/close! chan)))))
+
+  abio.io/IBufferedReader
+  (-read-line [_] (throw (ex-info "No single arity -read-line for AsyncBufferedReader" {})))
+  (-read-line [_ chan]
+    (go
+      (loop [line (io/-read-line buffered-reader)]
+        (if line
+          (do
+            (async/>! chan line)
+            (recur (io/-read-line buffered-reader)))
+          (async/close! chan)))))
+
   abio.io/IClosable
   (-close [_]
-    (go (-close buffered-reader))))
+    (go (io/-close buffered-reader))))
 
 ;; TODO: add some js->clj to this? More broadly, how/should we offer up cljs data?
 (defrecord Bindings [fs sep]
@@ -100,19 +104,13 @@
       (.read read-stream)                                   ; Hack to get buffer primed
       (->BufferedReader #(.read read-stream) #(.close fs fd) (atom nil) (atom 0))))
   (-async-file-reader-open [this path encoding]
-    (->AsyncBufferedReader (-file-reader-open this path encoding))
-    ;; (let [chan (async/promise-chan)
-    ;;       cb (fn [& args] (async/put! chan (vec args)))]
-    ;;   (.readFile fs path encoding cb)
-    ;;   chan)
-    )
+    (->AsyncBufferedReader (io/-file-reader-open this path encoding)))
   ;; (-async-file-writer-write [this path data & opts]
   ;;   (let [chan (async/promise-chan)
   ;;         cb #(async/put! chan (vec %))]
   ;;     (.writeFile fs path data (clj->js (apply hash-map opts) cb))))
   (-file-reader-read [this reader])
   (-file-reader-close [this reader])
-
   )
 
 (defn bindings
