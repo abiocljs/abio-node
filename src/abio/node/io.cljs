@@ -49,9 +49,9 @@
   (-close [_]
     (raw-close)))
 
-;; How would this be used?
-;; You call -read and it gives you a channel? How do you read multiple items? I guess I should just write
 ;; I might be wrong in just trying to wrap a BufferedReader. I think also I need to wrap it all inside a go loop
+;; TODO I could also potentially just make the 2-arity function in BufferedReader async
+;;      This might simplify the code some
 (defrecord AsyncBufferedReader [buffered-reader]
   abio.io/IReader
   (-read [_] (throw (ex-info "No single arity -read for AsyncBufferedReader" {})))
@@ -160,7 +160,7 @@
   ;;   (let [chan (async/promise-chan)
   ;;         cb #(async/put! chan (vec %))]
   ;;     (.writeFile fs path data (clj->js (apply hash-map opts) cb))))
-  (-file-reader-read [this reader])
+  (-file-reader-read [this reader]) ; pretty sure this isn't necessary, as IClosable, etc covers how to read
   (-file-reader-close [this reader])
   )
 
