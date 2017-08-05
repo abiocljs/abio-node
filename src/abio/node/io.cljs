@@ -79,6 +79,44 @@
   (-close [_]
     (go (io/-close buffered-reader))))
 
+;; -write should write data immediately
+;; -buffered-write should buffer up a bunch of data, flush, buffer, repeat
+;; -flush should write whatever buffered data there is currently
+(defrecord BufferedWriter [raw-write raw-close]
+  ;; abio.io/IWriter
+  ;; TODO: Does it make sense to have an unbuffered write? Do we care?
+  ;; (-write [this]
+  ;;   (if-some [buffered @buffer]
+  ;;     (do
+  ;;       (reset! buffer nil)
+  ;;       (raw-write buffered))))
+  ;; (-write [_ output]
+  ;;   (raw-write output))
+  ;; (-write [_ output channel]
+  ;;   (go (async/>! channel (raw-write output))))
+
+  abio.io/IBufferedWriter
+  (-buffered-write [_ output]
+    (raw-write output))
+  (-buffered-write [_ output channel]
+    (throw (ex-info "No double arity -buffered-write for BufferedWriter" {})))
+
+  abio.io/IClosable
+  (-close [_]
+    (raw-close)))
+
+(defrecord AsyncBufferedWriter [buffered-writer]
+  abio.io/IBufferedWriter
+  (-buffered-write [_ output]
+    (throw (ex-info "No single arity -buffered-write for AsyncBufferedWriter" {})))
+  (-buffered-write [_ output channel]
+    (go (async/>! channel (io/-buffered-write buffered-writer output))))
+
+  abio.io/IClosable
+  (-close [_]
+    (io/-close buffered-writer))
+  )
+
 ;; TODO: add some js->clj to this? More broadly, how/should we offer up cljs data?
 (defrecord Bindings [fs sep]
   abio.io/IBindings
@@ -105,6 +143,19 @@
       (->BufferedReader #(.read read-stream) #(.close fs fd) (atom nil) (atom 0))))
   (-async-file-reader-open [this path encoding]
     (->AsyncBufferedReader (io/-file-reader-open this path encoding)))
+
+  ;; Default to non-destructive write
+  (-file-writer-open [this path encoding {flags :flags :or {flags "a"}}]
+    ;; XXX default write stream has an internal buffer, but how to interact with it in a cljs idiomatic
+    ;; manner is unclear currently (because the js version has you attach callbacks to the streams events)
+    ;; In fact, is it possible to have an unbuffered write stream? maybe skip that for the time being?
+    (let [write-stream (.createWriteStream fs path #js {:encoding encoding :flags flags})]
+      (->BufferedWriter #(.write write-stream %1) #(.end write-stream)))
+
+    )
+  (-async-file-writer-open [this path encoding options]
+    (->AsyncBufferedWriter (io/-file-writer-open this path encoding options)))
+
   ;; (-async-file-writer-write [this path data & opts]
   ;;   (let [chan (async/promise-chan)
   ;;         cb #(async/put! chan (vec %))]
