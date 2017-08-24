@@ -9,45 +9,15 @@
 ;; (require '[abio.io :as io] '[clojure.string :as string] '[cljs.core.async :as async])
 ;; (require-macros '[cljs.core.async.macros :refer [go go-loop]])
 
-(defrecord BufferedReader [raw-read raw-close buffer pos]
+(defrecord BufferedReader [path encoding fs]
   abio.io/IReader
   (-read [_]
-    (if-some [buffered @buffer]
-      (do
-        (reset! buffer nil)
-        (subs buffered @pos))
-      (raw-read)))
-  (-read [_ _] (throw (ex-info "No double arity -read for BufferedReader" {})))
-
-  abio.io/IBufferedReader
-  (-read-line [this]
-    (if-some [buffered @buffer]
-      (if-some [n (string/index-of buffered "\n" @pos)]
-        (let [rv (subs buffered @pos n)]
-          (reset! pos (inc n))
-          rv)
-        (if-some [new-chars (raw-read)]
-          (do
-            (reset! buffer (str (subs buffered @pos) new-chars))
-            (reset! pos 0)
-            (recur this))
-          (do
-            (reset! buffer nil)
-            (let [rv (subs buffered @pos)]
-              (if (= rv "")
-                nil
-                rv)))))
-      (if-some [new-chars (raw-read)]
-        (do
-          (reset! buffer new-chars)
-          (reset! pos 0)
-          (recur this))
-        nil)))
-  (-read-line [_ _] (throw (ex-info "No double arity -read-line for BufferedReader" {})))
+    (.readFileSync fs path #js {:encoding encoding}))
+  (-read [_ _] (throw (ex-info "No double arity -read for a Node BufferedReader" {})))
 
   abio.io/IClosable
-  (-close [_]
-    (raw-close)))
+  ;; Even though there's nothing to close here, we keep it to preserve the use of `with-open`
+  (-close [_] nil))
 
 ;; I might be wrong in just trying to wrap a BufferedReader. I think also I need to wrap it all inside a go loop
 ;; TODO I could also potentially just make the 2-arity function in BufferedReader async
@@ -120,11 +90,7 @@
         (.. fs (readdir d cb))))) ;; XXX I have no idea if this works yet
   (-delete-file [this f])
   (-file-reader-open [this path encoding]
-    (let [fd (.openSync fs path "r")
-          read-stream (.createReadStream fs nil #js {:fd fd :encoding encoding})]
-      (.pause read-stream)
-      (.read read-stream)                                   ; Hack to get buffer primed
-      (->BufferedReader #(.read read-stream) #(.close fs fd) (atom nil) (atom 0))))
+    (->BufferedReader path encoding fs))
   (-async-file-reader-open [this path encoding]
     (->AsyncBufferedReader (io/-file-reader-open this path encoding)))
 
