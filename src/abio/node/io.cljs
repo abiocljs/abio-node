@@ -79,43 +79,27 @@
   (-close [_]
     (go (io/-close buffered-reader))))
 
-;; -write should write data immediately
-;; -buffered-write should buffer up a bunch of data, flush, buffer, repeat
-;; -flush should write whatever buffered data there is currently
 (defrecord BufferedWriter [raw-write raw-close]
-  ;; abio.io/IWriter
-  ;; TODO: Does it make sense to have an unbuffered write? Do we care?
-  ;; (-write [this]
-  ;;   (if-some [buffered @buffer]
-  ;;     (do
-  ;;       (reset! buffer nil)
-  ;;       (raw-write buffered))))
-  ;; (-write [_ output]
-  ;;   (raw-write output))
-  ;; (-write [_ output channel]
-  ;;   (go (async/>! channel (raw-write output))))
-
-  abio.io/IBufferedWriter
-  (-buffered-write [_ output]
+  abio.io/IAbioWriter
+  (-write [_ output]
     (raw-write output))
-  (-buffered-write [_ output channel]
-    (throw (ex-info "No double arity -buffered-write for BufferedWriter" {})))
+  (-write [_ output channel]
+    (throw (ex-info "No double arity -write for BufferedWriter" {})))
 
   abio.io/IClosable
   (-close [_]
     (raw-close)))
 
 (defrecord AsyncBufferedWriter [buffered-writer]
-  abio.io/IBufferedWriter
-  (-buffered-write [_ output]
-    (throw (ex-info "No single arity -buffered-write for AsyncBufferedWriter" {})))
-  (-buffered-write [_ output channel]
-    (go (async/>! channel (io/-buffered-write buffered-writer output))))
+  abio.io/IAbioWriter
+  (-write [_ output]
+    (throw (ex-info "No single arity -write for AsyncBufferedWriter" {})))
+  (-write [_ output channel]
+    (go (async/>! channel (io/-write buffered-writer output))))
 
   abio.io/IClosable
   (-close [_]
-    (io/-close buffered-writer))
-  )
+    (io/-close buffered-writer)))
 
 ;; TODO: add some js->clj to this? More broadly, how/should we offer up cljs data?
 (defrecord Bindings [fs sep]
