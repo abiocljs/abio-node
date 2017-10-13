@@ -34,17 +34,6 @@
             (recur (io/-read buffered-reader)))
           (async/close! chan)))))
 
-  abio.io/IBufferedReader
-  (-read-line [_] (throw (ex-info "No single arity -read-line for AsyncBufferedReader" {})))
-  (-read-line [_ chan]
-    (go
-      (loop [line (io/-read-line buffered-reader)]
-        (if line
-          (do
-            (async/>! chan line)
-            (recur (io/-read-line buffered-reader)))
-          (async/close! chan)))))
-
   abio.io/IClosable
   (-close [_]
     (go (io/-close buffered-reader))))
