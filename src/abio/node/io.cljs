@@ -90,15 +90,7 @@
     ;; In fact, is it possible to have an unbuffered write stream? maybe skip that for the time being?
     (->BufferedWriter path encoding {:flags flags} fs))
   (-async-file-writer-open [this path encoding options]
-    (->AsyncBufferedWriter (io/-file-writer-open this path encoding options)))
-
-  ;; (-async-file-writer-write [this path data & opts]
-  ;;   (let [chan (async/promise-chan)
-  ;;         cb #(async/put! chan (vec %))]
-  ;;     (.writeFile fs path data (clj->js (apply hash-map opts) cb))))
-  (-file-reader-read [this reader]) ; pretty sure this isn't necessary, as IClosable, etc covers how to read
-  (-file-reader-close [this reader])
-  )
+    (->AsyncBufferedWriter (io/-file-writer-open this path encoding options))))
 
 (defn bindings
   []
