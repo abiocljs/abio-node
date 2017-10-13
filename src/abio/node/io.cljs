@@ -49,16 +49,16 @@
   (-close [_]
     (go (io/-close buffered-reader))))
 
-(defrecord BufferedWriter [raw-write raw-close]
+(defrecord BufferedWriter [path encoding options fs]
   abio.io/IAbioWriter
   (-write [_ output]
-    (raw-write output))
+    (.writeFileSync fs path output (clj->js (merge {:encoding encoding} options))))
   (-write [_ output channel]
     (throw (ex-info "No double arity -write for BufferedWriter" {})))
 
   abio.io/IClosable
   (-close [_]
-    (raw-close)))
+    nil))
 
 (defrecord AsyncBufferedWriter [buffered-writer]
   abio.io/IAbioWriter
@@ -99,10 +99,7 @@
     ;; XXX default write stream has an internal buffer, but how to interact with it in a cljs idiomatic
     ;; manner is unclear currently (because the js version has you attach callbacks to the streams events)
     ;; In fact, is it possible to have an unbuffered write stream? maybe skip that for the time being?
-    (let [write-stream (.createWriteStream fs path #js {:encoding encoding :flags flags})]
-      (->BufferedWriter #(.write write-stream %1) #(.end write-stream)))
-
-    )
+    (->BufferedWriter path encoding {:flags flags} fs))
   (-async-file-writer-open [this path encoding options]
     (->AsyncBufferedWriter (io/-file-writer-open this path encoding options)))
 
