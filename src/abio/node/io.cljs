@@ -77,5 +77,4 @@
 (defn bindings
   []
   (->Bindings (js/require "fs")
-              (.-sep (js/require "path"))
-              ))
+              (.-sep (js/require "path"))))
