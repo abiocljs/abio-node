@@ -6,11 +6,11 @@
 ;; (require '[abio.io :as io] '[clojure.string :as string] '[cljs.core.async :as async])
 ;; (require-macros '[cljs.core.async.macros :refer [go go-loop]])
 
-(defrecord BufferedReader [path encoding fs]
+(defrecord BufferedReader [path opts fs] ; `opts` should contain :encoding and optionally :flag
   abio.io/IReader
   (-read [_]
-    (.readFileSync fs path #js {:encoding encoding}))
-  (-read [_ _] (throw (ex-info "No double arity -read for a Node BufferedReader" {})))
+    (.readFileSync fs path (clj->js opts)))
+  (-read [_ _] (throw (ex-info "No double arity -read for a synchronous Node BufferedReader" {})))
 
   abio.io/IClosable
   ;; Even though there's nothing to close here, we keep it to preserve the use of `with-open`
@@ -29,11 +29,11 @@
     ;; TODO: should these `-close` functions return true or nil?
     true))
 
-(defrecord BufferedWriter [path encoding options fs]
+(defrecord BufferedWriter [path opts fs]
   abio.io/IAbioWriter
   (-write [_ output]
-    (.writeFileSync fs path output (clj->js (merge {:encoding encoding} options))))
-  (-write [_ output channel]
+    (.writeFileSync fs path output (clj->js opts)))
+  (-write [_ output _]
     (throw (ex-info "No double arity -write for BufferedWriter" {})))
 
   abio.io/IClosable
@@ -61,17 +61,16 @@
   (-async-list-files [this d cb]
     (.. fs (readdir d cb))) ;; XXX I have no idea if this works yet
   (-delete-file [this f])
-  (-file-reader-open [this path encoding]
-    (->BufferedReader path encoding fs))
+
+
+  (-file-reader-open [this path opts]
+    (->BufferedReader path opts fs))
   (-async-file-reader-open [this path opts]
     (->AsyncBufferedReader path opts fs))
 
   ;; Default to non-destructive write
-  (-file-writer-open [this path encoding {flags :flags :or {flags "a"}}]
-    ;; XXX default write stream has an internal buffer, but how to interact with it in a cljs idiomatic
-    ;; manner is unclear currently (because the js version has you attach callbacks to the streams events)
-    ;; In fact, is it possible to have an unbuffered write stream? maybe skip that for the time being?
-    (->BufferedWriter path encoding {:flags flags} fs))
+  (-file-writer-open [this path opts]
+    (->BufferedWriter path (merge {:flag "a"} opts) fs))
   (-async-file-writer-open [this path opts]
     (->AsyncBufferedWriter path (merge {:flag "a"} opts) fs)))
 
