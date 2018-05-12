@@ -24,4 +24,5 @@ See [abio](https://github.com/abiocljs/abio#usage).
 
 Copyright © 2017 abiocljs and Contributors
 
-Distributed under the Eclipse Public License either version 1.0 or (at your option) any later version.
+Distributed under the Eclipse Public License either version 1.0 or (at your
+option) any later version.
