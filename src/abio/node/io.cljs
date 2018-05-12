@@ -58,8 +58,8 @@
     (.. fs (lstatSync f) (isDirectory)))
   (-list-files [this d]
     (.. fs (readdirSync d)))
-  (-async-list-files [this d cb]
-    (.. fs (readdir d cb))) ;; XXX I have no idea if this works yet
+  (-list-files [this d cb]
+    (.. fs (readdir d cb)))
   (-delete-file [this f])
 
 
