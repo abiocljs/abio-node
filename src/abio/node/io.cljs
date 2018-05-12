@@ -1,10 +1,7 @@
 (ns abio.node.io
   (:require
-    [abio.io :as io]
-    [clojure.string :as string]
-    [cljs.core.async :as async])
-  (:require-macros
-   [cljs.core.async.macros :refer [go go-loop]]))
+   [abio.io :as io]
+   [clojure.string :as string]))
 
 ;; (require '[abio.io :as io] '[clojure.string :as string] '[cljs.core.async :as async])
 ;; (require-macros '[cljs.core.async.macros :refer [go go-loop]])
@@ -19,24 +16,18 @@
   ;; Even though there's nothing to close here, we keep it to preserve the use of `with-open`
   (-close [_] nil))
 
-;; I might be wrong in just trying to wrap a BufferedReader. I think also I need to wrap it all inside a go loop
 ;; TODO I could also potentially just make the 2-arity function in BufferedReader async
 ;;      This might simplify the code some
-(defrecord AsyncBufferedReader [buffered-reader]
+(defrecord AsyncBufferedReader [path opts fs] ; `opts` needs :encoding and optionally :flag TODO how do I want to enforce that?
   abio.io/IReader
   (-read [_] (throw (ex-info "No single arity -read for AsyncBufferedReader" {})))
-  (-read [_ chan]
-    (go
-      (loop [data (io/-read buffered-reader)]
-        (if data
-          (do
-            (async/>! chan data)
-            (recur (io/-read buffered-reader)))
-          (async/close! chan)))))
+  (-read [_ cb] ; `cb` has to be 2-arity, first param is errors and second is data
+    (.readFile fs path (clj->js opts) cb)) ; TODO if this is a fd it won't get closed automatically; eventually that needs to be checked for.
 
   abio.io/IClosable
   (-close [_]
-    (go (io/-close buffered-reader))))
+    ;; TODO: should these `-close` functions return true or nil?
+    true))
 
 (defrecord BufferedWriter [path encoding options fs]
   abio.io/IAbioWriter
@@ -49,16 +40,15 @@
   (-close [_]
     nil))
 
-(defrecord AsyncBufferedWriter [buffered-writer]
+(defrecord AsyncBufferedWriter [path opts fs] ; TODO can the `flags` actually be kept as a map `opts`?
   abio.io/IAbioWriter
   (-write [_ output]
     (throw (ex-info "No single arity -write for AsyncBufferedWriter" {})))
-  (-write [_ output channel]
-    (go (async/>! channel (io/-write buffered-writer output))))
+  (-write [_ output cb] ; XXX `cb` takes one arg, `err`, but otherwise execution signals completion of the write.`
+    (.writeFile fs path output (clj->js opts) cb))
 
   abio.io/IClosable
-  (-close [_]
-    (io/-close buffered-writer)))
+  (-close [_] true))
 
 ;; TODO: add some js->clj to this? More broadly, how/should we offer up cljs data?
 (defrecord Bindings [fs sep]
@@ -68,20 +58,13 @@
     (.. fs (lstatSync f) (isDirectory)))
   (-list-files [this d]
     (.. fs (readdirSync d)))
-  (-async-list-files [this d]
-    (let [chan (async/chan)
-          cb (fn [err contents]
-               (if err
-                 (async/>! chan err)
-                 (async/>! chan contents))
-               (async/close! chan))]
-      (go
-        (.. fs (readdir d cb))))) ;; XXX I have no idea if this works yet
+  (-async-list-files [this d cb]
+    (.. fs (readdir d cb))) ;; XXX I have no idea if this works yet
   (-delete-file [this f])
   (-file-reader-open [this path encoding]
     (->BufferedReader path encoding fs))
-  (-async-file-reader-open [this path encoding]
-    (->AsyncBufferedReader (io/-file-reader-open this path encoding)))
+  (-async-file-reader-open [this path opts]
+    (->AsyncBufferedReader path opts fs))
 
   ;; Default to non-destructive write
   (-file-writer-open [this path encoding {flags :flags :or {flags "a"}}]
@@ -89,8 +72,8 @@
     ;; manner is unclear currently (because the js version has you attach callbacks to the streams events)
     ;; In fact, is it possible to have an unbuffered write stream? maybe skip that for the time being?
     (->BufferedWriter path encoding {:flags flags} fs))
-  (-async-file-writer-open [this path encoding options]
-    (->AsyncBufferedWriter (io/-file-writer-open this path encoding options))))
+  (-async-file-writer-open [this path opts]
+    (->AsyncBufferedWriter path (merge {:flag "a"} opts) fs)))
 
 (defn bindings
   []
