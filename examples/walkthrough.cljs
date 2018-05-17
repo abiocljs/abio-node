@@ -1,16 +1,14 @@
 (ns abio.node.walkthrough
   (:require [abio.io :as io]
-            abio.node
-            abio.core
-            [clojure.pprint :as pp]
-            [clojure.string :as string]))
+            [abio.node :as node]
+            [abio.core :refer [*io-bindings*]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Set up the host specific bindings.
 ;;
 ;; This is the first function that's called, setting up the host specific I/O
 ;; machinery used by the higher level functions.
-(abio.core/set-bindings! (abio.node/bindings))
+(abio.core/set-bindings! (node/bindings))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; General FS bindings
@@ -27,10 +25,10 @@
 ;; Synchronous directory listing
 (defn sync-ls
   [path]
-  (if (not (io/-directory? abio.core/*io-bindings* path))
+  (if (not (io/-directory? *io-bindings* path))
     (println "Path needs to be a directory, but you gave me the following: " path)
     (do (println "Synchronously listing files in " path)
-        (io/-list-files abio.core/*io-bindings* path))))
+        (io/-list-files *io-bindings* path))))
 
 ;; Asynchronous directory listing
 (defn async-ls-cb
@@ -40,11 +38,11 @@
 
 (defn async-ls
   [path]
-  (if (not (io/-directory? abio.core/*io-bindings* path))
+  (if (not (io/-directory? *io-bindings* path))
     (println "Path needs to be a directory, but you gave me the following: " path)
     (do
       (println "Asynchronously listing files in " path)
-      (io/-list-files abio.core/*io-bindings* path async-ls-cb))))
+      (io/-list-files *io-bindings* path async-ls-cb))))
 
 ;;;;;;;;;;;;;;;;
 ;; Reading Files
@@ -62,7 +60,7 @@
 ;; Here's a sync read
 (defn sync-read
   [reader]
-  (if (io/-directory? abio.core/*io-bindings* (:path reader))
+  (if (io/-directory? *io-bindings* (:path reader))
     (println "You asked me to read a directory, but I only work on files.")
     (do (println "Synchronously reading the contents of" (:path reader) "\n")
         (abio.io/-read reader))))
@@ -76,7 +74,7 @@
 
 (defn async-read
   [reader]
-  (if (io/-directory? abio.core/*io-bindings* (:path reader))
+  (if (io/-directory? *io-bindings* (:path reader))
     (println "You asked me to read a directory, but I only work on files.")
     (do
       (println "Asynchronously reading the contents of" (:path reader) "\n")
