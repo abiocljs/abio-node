@@ -35,7 +35,7 @@
 ;; Asynchronous directory listing
 (defn async-ls-cb
   [err files]
-  (println "Here's the files we got back from the asynchronous -list-files call.")
+  (println "\nHere's the files we got back from the asynchronous -list-files call.")
   (pp/pprint files))
 
 (defn async-ls
@@ -68,10 +68,50 @@
         (abio.io/-read reader))))
 
 ;; Here's an async read
+(defn async-read-cb
+  [err data]
+  (if err
+    (println "Oh dag, the read failed with the following error:" err)
+    (println data)))
+
 (defn async-read
   [reader]
   (if (io/-directory? abio.core/*io-bindings* (:path reader))
     (println "You asked me to read a directory, but I only work on files.")
-    (abio.io/-read rdr (fn [err data]
-                         (println "Asynchronously read the contents of" (:path reader) "\n")
-                         (println data)))))
+    (do
+      (println "Asynchronously reading the contents of" (:path reader) "\n")
+      (abio.io/-read rdr async-read-cb))))
+
+;;;;;;;;;;;;;;;;
+;; Writing Files
+
+;; First define our writer
+(def writer (io/writer "test-writer.txt"))
+
+;; Here's a sync write
+(defn sync-write
+  [writer output]
+  (io/-write writer output))
+
+;; Here's an async write.
+;;
+;; On Node, the only outcome from an async write is any error that was
+;; encountered. If no error, then the write succeeded.
+(defn async-write-cb
+  [err]
+  (if err
+    (println "Shucks, the write failed. Here's the error:" err)
+    (println "The write was successful, huzzah!")))
+
+(defn async-write
+  [writer output]
+  (io/-write writer output async-write-cb))
+
+(comment
+  ;; Put some content in the writer test file
+  (sync-write writer "Here's a sync write.\n")
+  (async-write writer "Here's an async write.\n")
+
+  ;; Then read out the content we wrote
+  (def rdr2 (io/reader "test-writer.txt" :encoding "utf8"))
+  (println (sync-reader rdr3)))
