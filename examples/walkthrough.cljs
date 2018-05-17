@@ -33,8 +33,8 @@
 ;; Asynchronous directory listing
 (defn async-ls-cb
   [err files]
-  (println "\nHere's the files we got back from the asynchronous -list-files call.")
-  (pp/pprint files))
+  (println "\nHere's the list of files we got back from the asynchronous -list-files call.")
+  (println files))
 
 (defn async-ls
   [path]
