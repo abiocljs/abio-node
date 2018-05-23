@@ -17,6 +17,7 @@ See [abio usage](https://github.com/abiocljs/abio#usage) and [examples/walkthrou
 5. Create Stream implementations.
 6. Bind `*in*` with `abio.core/set-bindings!`
 7. Get `abio.io/slurp` working with the node bindings.
+8. How best can we signal the arities of the callback functions for each protocol method?
 
 ## License
 
